@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
-import { getSampleBoard } from '../data/samplePuzzle';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { levels } from '../data/levels';
+import { mapRawPuzzleToBoard } from '../data/puzzles/mapper';
 import BoardView from '../components/BoardView';
 import {
     Cell,
@@ -18,25 +20,33 @@ const SUCCESS_COLOR = '#10B981'; // Emerald 500
 const BACKGROUND_COLOR = '#F8FAFC'; // Slate 50
 
 export default function PuzzleScreen() {
-    const board = useMemo(() => getSampleBoard(), []);
+    const route = useRoute<any>();
+    const navigation = useNavigation<any>();
+    const { levelId, puzzleId } = route.params || {};
+
+    // Find the level and puzzle based on params
+    const level = useMemo(() => levels.find(l => l.id === levelId), [levelId]);
+    const puzzle = useMemo(() => level?.puzzles.find(p => p.id === puzzleId), [level, puzzleId]);
+    const board = useMemo(() => puzzle ? mapRawPuzzleToBoard(puzzle) : null, [puzzle]);
+
     const [boardLayout, setBoardLayout] = useState<{ width: number, height: number } | null>(null);
 
     // Compute cell size dynamically based on actually measured space
     const cellSize = useMemo(() => {
-        if (!boardLayout) return 0;
+        if (!boardLayout || !board) return 0;
 
         // Apply a little internal padding to the measured area for breathing room
         const padding = 20;
         const availableWidth = boardLayout.width - padding;
         const availableHeight = boardLayout.height - padding;
 
-        const sizeByWidth = Math.floor(availableWidth / board.width);
-        const sizeByHeight = Math.floor(availableHeight / board.height);
+        const sizeByWidth = Math.floor(availableWidth / (board?.width || 1));
+        const sizeByHeight = Math.floor(availableHeight / (board?.height || 1));
 
         // Return smaller of the two dimensions to ensure it fits, 
         // with a sane minimum (30) and a maximum cap (60) for visual comfort.
         return Math.max(30, Math.min(sizeByWidth, sizeByHeight, 60));
-    }, [boardLayout, board.width, board.height]);
+    }, [boardLayout, board]);
 
     const handleLayout = (event: any) => {
         const { width, height } = event.nativeEvent.layout;
@@ -45,12 +55,22 @@ export default function PuzzleScreen() {
         }
     };
 
-    const [gameState, setGameState] = useState(() => createGameState(board));
+    const [gameState, setGameState] = useState(() => board ? createGameState(board) : null);
 
     const [selectionStart, setSelectionStart] = useState<Cell | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<Cell | null>(null);
 
     const [validationState, setValidationState] = useState<{ isSolved: boolean, errors: any[] } | null>(null);
+
+    // Reset game state when board (puzzle) changes
+    useEffect(() => {
+        if (board) {
+            setGameState(createGameState(board));
+            setValidationState(null);
+            setSelectionStart(null);
+            setSelectionEnd(null);
+        }
+    }, [board]);
 
     // Animations
     const solvedScale = useRef(new Animated.Value(0.8)).current;
@@ -109,6 +129,7 @@ export default function PuzzleScreen() {
             id: `rect-${Date.now()}`
         };
 
+        if (!gameState) return;
         const newState = placeRectangle(gameState, newRectangle);
         setGameState(newState);
         incrementPlacements();
@@ -118,6 +139,7 @@ export default function PuzzleScreen() {
     };
 
     const handleSubmit = () => {
+        if (!board || !gameState) return;
         const result = validateSolvedBoard(board, gameState.rectangles);
         setValidationState(result);
         if (result.isSolved) {
@@ -126,10 +148,32 @@ export default function PuzzleScreen() {
     };
 
     const handleReset = () => {
+        if (!board) return;
         setGameState(createGameState(board));
         setSelectionStart(null);
         setSelectionEnd(null);
         setValidationState(null);
+    };
+
+    if (!level || !puzzle || !board || !gameState) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={styles.title}>Puzzle Not Found</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.submitButton, { marginTop: 20, width: 'auto', paddingHorizontal: 30 }]}>
+                    <Text style={styles.submitButtonText}>Return to Selection</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const currentPuzzleIndex = level.puzzles.indexOf(puzzle);
+    const hasNextPuzzle = currentPuzzleIndex < level.puzzles.length - 1;
+    const nextPuzzle = hasNextPuzzle ? level.puzzles[currentPuzzleIndex + 1] : null;
+
+    const handleNextPuzzle = () => {
+        if (nextPuzzle) {
+            navigation.replace('Puzzle', { levelId: level.id, puzzleId: nextPuzzle.id });
+        }
     };
 
     const previewRectangle = selectionStart && selectionEnd
@@ -140,7 +184,12 @@ export default function PuzzleScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <View style={styles.headerTop}>
-                    <Text style={styles.title}>Classic 2x2</Text>
+                    <View style={styles.titleContainer}>
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                            <Text style={styles.backButtonLabel}>← Levels</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.title}>{level.name} {currentPuzzleIndex + 1}</Text>
+                    </View>
                     <View style={styles.headerActions}>
                         <TouchableOpacity onPress={handleReset} style={styles.actionButton} activeOpacity={0.6}>
                             <Text style={styles.actionButtonText}>Reset Board</Text>
@@ -151,7 +200,7 @@ export default function PuzzleScreen() {
                 {validationState?.isSolved ? (
                     <Animated.View style={[styles.solvedBanner, { opacity: solvedOpacity, transform: [{ scale: solvedScale }] }]}>
                         <Text style={styles.solvedText}>🎉 Puzzle Solved!</Text>
-                        <Text style={styles.solvedSubtext}>You matched all clues perfectly.</Text>
+                        <Text style={styles.solvedSubtext}>{hasNextPuzzle ? 'Ready for the next one?' : 'Level complete!'}</Text>
                     </Animated.View>
                 ) : (
                     <View style={styles.headerInfo}>
@@ -186,9 +235,15 @@ export default function PuzzleScreen() {
             <View style={styles.footer}>
                 {validationState?.isSolved ? (
                     <Animated.View style={[styles.solvedFooterExtra, { opacity: solvedOpacity }]}>
-                        <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                            <Text style={styles.resetButtonText}>Play Again</Text>
-                        </TouchableOpacity>
+                        {hasNextPuzzle ? (
+                            <TouchableOpacity style={styles.submitButton} onPress={handleNextPuzzle}>
+                                <Text style={styles.submitButtonText}>Next Puzzle</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={styles.resetButton} onPress={() => navigation.goBack()}>
+                                <Text style={styles.resetButtonText}>Back to Levels</Text>
+                            </TouchableOpacity>
+                        )}
                     </Animated.View>
                 ) : (
                     <TouchableOpacity
@@ -221,13 +276,25 @@ const styles = StyleSheet.create({
     headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         width: '100%',
         marginBottom: 16,
+    },
+    titleContainer: {
+        flex: 1,
+    },
+    backButton: {
+        marginBottom: 4,
+    },
+    backButtonLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: PRIMARY_COLOR,
     },
     headerActions: {
         flexDirection: 'row',
         gap: 8,
+        marginTop: 18,
     },
     title: {
         fontSize: 32,
