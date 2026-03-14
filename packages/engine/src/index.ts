@@ -1,50 +1,55 @@
-export type Clue = { x: number; y: number; value: number };
-export type Rectangle = { x: number; y: number; width: number; height: number };
-export type Board = { width: number; height: number; clues: Clue[] };
-
-export type ValidationResult = {
-  isSolved: boolean;
-  errors: string[];
-};
-
-function cellsForRectangle(rectangle: Rectangle) {
-  const cells = [] as Array<string>;
-  for (let y = rectangle.y; y < rectangle.y + rectangle.height; y += 1) {
-    for (let x = rectangle.x; x < rectangle.x + rectangle.width; x += 1) {
-      cells.push(`${x},${y}`);
-    }
-  }
-  return cells;
-}
+export * from './types';
+export * from './geometry';
+export * from './gameplay';
+import { Board, Rectangle, ValidationResult } from './types';
+import {
+  getCellsForRectangle,
+  isRectangleInsideBoard,
+  doRectanglesOverlap,
+  containsCell,
+  getRectangleArea
+} from './geometry';
 
 export function validateSolvedBoard(board: Board, rectangles: Rectangle[]): ValidationResult {
   const errors: string[] = [];
-  const occupied = new Map<string, number>();
+  const occupied = new Set<string>();
 
   rectangles.forEach((rectangle, index) => {
-    const cells = cellsForRectangle(rectangle);
+    // 1. Validate dimensions
+    if (rectangle.width <= 0 || rectangle.height <= 0) {
+      errors.push(`Rectangle ${index} has invalid dimensions: ${rectangle.width}x${rectangle.height}`);
+      return; // Skip further checks for invalid shapes
+    }
+
+    // 2. Bound checks
+    if (!isRectangleInsideBoard(board, rectangle)) {
+      errors.push(`Rectangle ${index} is out of bounds`);
+    }
+
+    // 3. Mark cells and overlap checks
+    // We check overlaps using pairs with `doRectanglesOverlap` instead of a grid matrix
+    // but the set is kept to verify all board cells are covered without O(N) queries
+    const cells = getCellsForRectangle(rectangle);
     for (const cell of cells) {
-      const count = occupied.get(cell) ?? 0;
-      occupied.set(cell, count + 1);
-      if (count >= 1) {
-        errors.push(`Overlap detected at ${cell}`);
+      const key = `${cell.x},${cell.y}`;
+      occupied.add(key);
+    }
+
+    // Check overlaps explicitly using the logic helper
+    for (let j = index + 1; j < rectangles.length; j++) {
+      if (doRectanglesOverlap(rectangle, rectangles[j])) {
+        errors.push(`Overlap detected between Rectangle ${index} and Rectangle ${j}`);
       }
     }
 
-    const containedClues = board.clues.filter(
-      clue =>
-        clue.x >= rectangle.x &&
-        clue.x < rectangle.x + rectangle.width &&
-        clue.y >= rectangle.y &&
-        clue.y < rectangle.y + rectangle.height
-    );
+    const containedClues = board.clues.filter(clue => containsCell(rectangle, clue));
 
     if (containedClues.length !== 1) {
       errors.push(`Rectangle ${index} must contain exactly one clue`);
       return;
     }
 
-    const area = rectangle.width * rectangle.height;
+    const area = getRectangleArea(rectangle);
     if (containedClues[0].value !== area) {
       errors.push(`Rectangle ${index} area ${area} does not match clue ${containedClues[0].value}`);
     }
