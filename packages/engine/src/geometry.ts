@@ -10,6 +10,14 @@ export function getCellsForRectangle(rectangle: Rectangle): Cell[] {
     return cells;
 }
 
+export function getRectangleFromCells(start: Cell, end: Cell): Rectangle {
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const width = Math.abs(start.x - end.x) + 1;
+    const height = Math.abs(start.y - end.y) + 1;
+    return { x, y, width, height };
+}
+
 export function isRectangleInsideBoard(board: Board, rectangle: Rectangle): boolean {
     return rectangle.x >= 0 &&
         rectangle.y >= 0 &&

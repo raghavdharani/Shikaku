@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, PanResponder, GestureResponderEvent } from 'react-native';
+import { View, StyleSheet, PanResponder, GestureResponderEvent, Animated } from 'react-native';
 import { Board, PlacedRectangle, Rectangle, Cell } from '@shikaku/engine';
 import GridCell from './GridCell';
 
@@ -67,102 +67,149 @@ export default function BoardView({
         })
     ).current;
 
+    const boardWidth = board.width * cellSize;
+    const boardHeight = board.height * cellSize;
+
+    // Increased inset for a "contained" floating look inside the cells
+    const RECT_INSET = 6;
+
     return (
-        <View style={[styles.container, { width: board.width * cellSize, height: board.height * cellSize }]}>
-            {/* Background Grid */}
-            <View style={styles.grid}>
-                {Array.from({ length: board.height }).map((_, y) => (
-                    <View key={`row-${y}`} style={styles.row}>
-                        {Array.from({ length: board.width }).map((_, x) => {
-                            const clue = board.clues.find(c => c.x === x && c.y === y);
-                            const isStart = selectionStart?.x === x && selectionStart?.y === y;
-                            const isEnd = selectionEnd?.x === x && selectionEnd?.y === y;
-                            return (
-                                <GridCell
-                                    key={`cell-${x}-${y}`}
-                                    size={cellSize}
-                                    clue={clue}
-                                    isStart={isStart}
-                                    isEnd={isEnd}
-                                />
-                            );
-                        })}
+        <View style={styles.shadowWrapper}>
+            <View style={styles.boardFrame}>
+                <View
+                    style={[styles.boardSurface, { width: boardWidth, height: boardHeight }]}
+                    {...panResponder.panHandlers}
+                >
+                    {/* Background Grid - Non-interactive */}
+                    <View style={styles.grid} pointerEvents="none">
+                        {Array.from({ length: board.height }).map((_, y) => (
+                            <View key={`row-${y}`} style={styles.row}>
+                                {Array.from({ length: board.width }).map((_, x) => {
+                                    const clue = board.clues.find(c => c.x === x && c.y === y);
+                                    const isStart = selectionStart?.x === x && selectionStart?.y === y;
+                                    const isEnd = selectionEnd?.x === x && selectionEnd?.y === y;
+                                    return (
+                                        <GridCell
+                                            key={`cell-${x}-${y}`}
+                                            size={cellSize}
+                                            clue={clue}
+                                            isStart={isStart}
+                                            isEnd={isEnd}
+                                        />
+                                    );
+                                })}
+                            </View>
+                        ))}
                     </View>
-                ))}
+
+                    {/* Placed Rectangles Overlay - Non-interactive */}
+                    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                        {rectangles.map(rect => (
+                            <View
+                                key={rect.id}
+                                style={[
+                                    styles.rectangle,
+                                    {
+                                        left: rect.x * cellSize + RECT_INSET,
+                                        top: rect.y * cellSize + RECT_INSET,
+                                        width: rect.width * cellSize - (RECT_INSET * 2),
+                                        height: rect.height * cellSize - (RECT_INSET * 2),
+                                    },
+                                ]}
+                            />
+                        ))}
+                    </View>
+
+                    {/* Preview Rectangle Overlay - Non-interactive */}
+                    <PreviewLayer previewRectangle={previewRectangle} cellSize={cellSize} RECT_INSET={RECT_INSET} />
+                </View>
             </View>
-
-            {/* Placed Rectangles Overlay */}
-            {rectangles.map(rect => (
-                <View
-                    key={rect.id}
-                    style={[
-                        styles.rectangle,
-                        {
-                            left: rect.x * cellSize,
-                            top: rect.y * cellSize,
-                            width: rect.width * cellSize,
-                            height: rect.height * cellSize,
-                        },
-                    ]}
-                />
-            ))}
-
-            {/* Preview Rectangle Overlay */}
-            {previewRectangle && (
-                <View
-                    style={[
-                        styles.previewRectangle,
-                        {
-                            left: previewRectangle.x * cellSize,
-                            top: previewRectangle.y * cellSize,
-                            width: previewRectangle.width * cellSize,
-                            height: previewRectangle.height * cellSize,
-                        },
-                    ]}
-                />
-            )}
-
-            {/* Touch Layer Overlay */}
-            <View
-                style={StyleSheet.absoluteFill}
-                {...panResponder.panHandlers}
-            />
         </View>
     );
 }
 
+function PreviewLayer({ previewRectangle, cellSize, RECT_INSET }: { previewRectangle?: Rectangle | null, cellSize: number, RECT_INSET: number }) {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.timing(fadeAnim, {
+            toValue: previewRectangle ? 1 : 0,
+            duration: 150,
+            useNativeDriver: true,
+        }).start();
+    }, [!!previewRectangle]);
+
+    // Using an internal local variable for the last known rectangle to avoid jumpiness during fade-out
+    const [lastKnownRect, setLastKnownRect] = React.useState<Rectangle | null>(null);
+
+    useEffect(() => {
+        if (previewRectangle) {
+            setLastKnownRect(previewRectangle);
+        }
+    }, [previewRectangle]);
+
+    if (!previewRectangle && !lastKnownRect) return null;
+
+    const rect = previewRectangle || lastKnownRect;
+
+    return (
+        <Animated.View
+            pointerEvents="none"
+            style={[
+                styles.previewRectangle,
+                {
+                    opacity: fadeAnim,
+                    left: (rect?.x || 0) * cellSize + RECT_INSET,
+                    top: (rect?.y || 0) * cellSize + RECT_INSET,
+                    width: (rect?.width || 1) * cellSize - (RECT_INSET * 2),
+                    height: (rect?.height || 1) * cellSize - (RECT_INSET * 2),
+                },
+            ]}
+        />
+    );
+}
+
 const styles = StyleSheet.create({
-    container: {
-        borderWidth: 2,
-        borderColor: '#333',
-        backgroundColor: '#fff',
-        position: 'relative',
-        // Shadow for board depth
-        elevation: 4,
+    shadowWrapper: {
+        borderRadius: 24,
+        elevation: 12,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+    },
+    boardFrame: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2E8F0', // Softest slate
+        borderRadius: 24,
+        padding: 20, // Maximum breathing room
+    },
+    boardSurface: {
+        backgroundColor: 'transparent',
+        overflow: 'hidden',
+        position: 'relative',
+        borderRadius: 10, // Smoother clipping
     },
     grid: {
-        flex: 1,
+        // Controlled by surface
     },
     row: {
         flexDirection: 'row',
     },
     rectangle: {
         position: 'absolute',
-        borderWidth: 2,
-        borderColor: '#007AFF',
-        backgroundColor: 'rgba(0, 122, 255, 0.2)',
-        borderRadius: 4,
+        borderWidth: 3, // Stronger border
+        borderColor: '#6366F1', // Indigo 500
+        backgroundColor: 'rgba(99, 102, 241, 0.12)', // Subtle Indigo fill
+        borderRadius: 8,
     },
     previewRectangle: {
         position: 'absolute',
         borderWidth: 2,
-        borderColor: '#FF9500',
-        backgroundColor: 'rgba(255, 149, 0, 0.3)',
+        borderColor: '#94A3B8', // Slate 400
+        backgroundColor: 'rgba(148, 163, 184, 0.06)',
         borderStyle: 'dashed',
-        borderRadius: 4,
+        borderRadius: 8,
     },
 });

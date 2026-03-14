@@ -28,19 +28,19 @@ export default function GridCell({ clue, size, isStart, isEnd }: GridCellProps) 
 const styles = StyleSheet.create({
     container: {
         borderWidth: 0.5,
-        borderColor: '#eee',
+        borderColor: '#F1F5F9', // Very light slate
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: '#FFFFFF',
     },
     startCell: {
-        backgroundColor: '#E6F4FE',
-        borderColor: '#007AFF',
+        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+        borderColor: '#6366F1',
         borderWidth: 1.5,
     },
     endCell: {
-        backgroundColor: '#FFF4E6',
-        borderColor: '#FF9500',
+        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+        borderColor: '#6366F1',
         borderWidth: 1.5,
     }
 });

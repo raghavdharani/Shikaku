@@ -1,0 +1,440 @@
+diff --git a/apps/mobile/components/BoardView.tsx b/apps/mobile/components/BoardView.tsx
+index df945925..ab489fa6 100644
+--- a/apps/mobile/components/BoardView.tsx
++++ b/apps/mobile/components/BoardView.tsx
+@@ -30,8 +30,8 @@ export default function BoardView({
+                     <View key={`row-${y}`} style={styles.row}>
+                         {Array.from({ length: board.width }).map((_, x) => {
+                             const clue = board.clues.find(c => c.x === x && c.y === y);
+-                            const isSelected = (selectionStart?.x === x && selectionStart?.y === y) ||
+-                                (selectionEnd?.x === x && selectionEnd?.y === y);
++                            const isStart = selectionStart?.x === x && selectionStart?.y === y;
++                            const isEnd = selectionEnd?.x === x && selectionEnd?.y === y;
+                             return (
+                                 <GridCell
+                                     key={`cell-${x}-${y}`}
+@@ -40,7 +40,8 @@ export default function BoardView({
+                                     size={cellSize}
+                                     clue={clue}
+                                     onPress={onCellPress}
+-                                    isSelected={isSelected}
++                                    isStart={isStart}
++                                    isEnd={isEnd}
+                                 />
+                             );
+                         })}
+@@ -99,13 +100,15 @@ const styles = StyleSheet.create({
+         position: 'absolute',
+         borderWidth: 2,
+         borderColor: '#007AFF',
+-        backgroundColor: 'rgba(0, 122, 255, 0.1)',
++        backgroundColor: 'rgba(0, 122, 255, 0.15)',
++        borderRadius: 4,
+     },
+     previewRectangle: {
+         position: 'absolute',
+         borderWidth: 2,
+         borderColor: '#FF9500',
+-        backgroundColor: 'rgba(255, 149, 0, 0.2)',
++        backgroundColor: 'rgba(255, 149, 0, 0.25)',
+         borderStyle: 'dashed',
++        borderRadius: 4,
+     },
+ });
+diff --git a/apps/mobile/components/GridCell.tsx b/apps/mobile/components/GridCell.tsx
+index dfce8eef..bc7e8f15 100644
+--- a/apps/mobile/components/GridCell.tsx
++++ b/apps/mobile/components/GridCell.tsx
+@@ -9,10 +9,11 @@ interface GridCellProps {
+     size: number;
+     clue?: Clue;
+     onPress: (x: number, y: number) => void;
+-    isSelected?: boolean;
++    isStart?: boolean;
++    isEnd?: boolean;
+ }
+ 
+-export default function GridCell({ clue, size, x, y, onPress, isSelected }: GridCellProps) {
++export default function GridCell({ clue, size, x, y, onPress, isStart, isEnd }: GridCellProps) {
+     return (
+         <TouchableOpacity
+             activeOpacity={0.7}
+@@ -20,7 +21,8 @@ export default function GridCell({ clue, size, x, y, onPress, isSelected }: Grid
+             style={[
+                 styles.container,
+                 { width: size, height: size },
+-                isSelected && styles.selected
++                isStart && styles.startCell,
++                isEnd && styles.endCell
+             ]}
+         >
+             {clue && <ClueView clue={clue} />}
+@@ -31,11 +33,19 @@ export default function GridCell({ clue, size, x, y, onPress, isSelected }: Grid
+ const styles = StyleSheet.create({
+     container: {
+         borderWidth: 0.5,
+-        borderColor: '#ddd',
++        borderColor: '#eee',
+         justifyContent: 'center',
+         alignItems: 'center',
++        backgroundColor: '#fff',
+     },
+-    selected: {
++    startCell: {
+         backgroundColor: '#E6F4FE',
++        borderColor: '#007AFF',
++        borderWidth: 1.5,
++    },
++    endCell: {
++        backgroundColor: '#FFF4E6',
++        borderColor: '#FF9500',
++        borderWidth: 1.5,
+     }
+ });
+diff --git a/apps/mobile/data/sessionStore.ts b/apps/mobile/data/sessionStore.ts
+new file mode 100644
+index 00000000..4d4e0687
+--- /dev/null
++++ b/apps/mobile/data/sessionStore.ts
+@@ -0,0 +1,33 @@
++export type SessionStats = {
++    puzzlesSolved: number;
++    placementsMade: number;
++    undosMade: number;
++};
++
++let stats: SessionStats = {
++    puzzlesSolved: 0,
++    placementsMade: 0,
++    undosMade: 0,
++};
++
++export const getSessionStats = () => stats;
++
++export const incrementSolved = () => {
++    stats.puzzlesSolved += 1;
++};
++
++export const incrementPlacements = () => {
++    stats.placementsMade += 1;
++};
++
++export const incrementUndos = () => {
++    stats.undosMade += 1;
++};
++
++export const resetSessionStats = () => {
++    stats = {
++        puzzlesSolved: 0,
++        placementsMade: 0,
++        undosMade: 0,
++    };
++};
+diff --git a/apps/mobile/screens/PuzzleScreen.tsx b/apps/mobile/screens/PuzzleScreen.tsx
+index 06738c15..9f05f7dd 100644
+--- a/apps/mobile/screens/PuzzleScreen.tsx
++++ b/apps/mobile/screens/PuzzleScreen.tsx
+@@ -2,7 +2,17 @@ import React, { useState, useMemo } from 'react';
+ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+ import { getSampleBoard } from '../data/samplePuzzle';
+ import BoardView from '../components/BoardView';
+-import { Cell, getRectangleFromCells, createGameState, placeRectangle } from '@shikaku/engine';
++import {
++    Cell,
++    getRectangleFromCells,
++    createGameState,
++    placeRectangle,
++    validateSolvedBoard,
++    undo,
++    redo
++} from '@shikaku/engine';
++import { incrementPlacements, incrementUndos, incrementSolved } from '../data/sessionStore';
++import { useIsFocused } from '@react-navigation/native';
+ 
+ const CELL_SIZE = 60;
+ 
+@@ -12,8 +22,28 @@ export default function PuzzleScreen() {
+ 
+     const [selectionStart, setSelectionStart] = useState<Cell | null>(null);
+     const [selectionEnd, setSelectionEnd] = useState<Cell | null>(null);
++    const isFocused = useIsFocused(); // To force re-render if stats need refreshing (not strictly needed here but good practice)
++
++    const validation = useMemo(() =>
++        validateSolvedBoard(board, gameState.rectangles),
++        [board, gameState.rectangles]);
++
++    const solvedRef = React.useRef(false);
++    React.useEffect(() => {
++        if (validation.isSolved && !solvedRef.current) {
++            solvedRef.current = true;
++            incrementSolved();
++        } else if (!validation.isSolved) {
++            solvedRef.current = false;
++        }
++    }, [validation.isSolved]);
++
++    const canUndo = gameState.history.past.length > 0;
++    const canRedo = gameState.history.future.length > 0;
+ 
+     const handleCellPress = (x: number, y: number) => {
++        if (validation.isSolved) return; // Lock interactions on solved
++
+         if (!selectionStart) {
+             setSelectionStart({ x, y });
+             setSelectionEnd(null);
+@@ -30,7 +60,7 @@ export default function PuzzleScreen() {
+         : null;
+ 
+     const handlePlaceRectangle = () => {
+-        if (!previewRectangle) return;
++        if (!previewRectangle || validation.isSolved) return;
+ 
+         const newRectangle = {
+             ...previewRectangle,
+@@ -39,19 +69,80 @@ export default function PuzzleScreen() {
+ 
+         const newState = placeRectangle(gameState, newRectangle);
+         setGameState(newState);
++        incrementPlacements();
+ 
+         // Reset selection
+         setSelectionStart(null);
+         setSelectionEnd(null);
+     };
+ 
++    const handleUndo = () => {
++        if (!canUndo) return;
++        setGameState(undo(gameState));
++        incrementUndos();
++        setSelectionStart(null);
++        setSelectionEnd(null);
++    };
++
++    const handleRedo = () => {
++        if (!canRedo) return;
++        setGameState(redo(gameState));
++        setSelectionStart(null);
++        setSelectionEnd(null);
++    };
++
++    const handleReset = () => {
++        setGameState(createGameState(board));
++        setSelectionStart(null);
++        setSelectionEnd(null);
++    };
++
+     return (
+         <View style={styles.container}>
+             <View style={styles.header}>
+-                <Text style={styles.title}>Classic 2x2</Text>
+-                <Text style={styles.subtitle}>
+-                    {!selectionStart ? 'Tap start cell' : !selectionEnd ? 'Tap end cell' : 'Rectangle preview'}
+-                </Text>
++                <View style={styles.headerTop}>
++                    <Text style={styles.title}>Classic 2x2</Text>
++                    <View style={styles.headerActions}>
++                        <TouchableOpacity
++                            onPress={handleUndo}
++                            disabled={!canUndo}
++                            style={styles.actionButton}
++                        >
++                            <Text style={[
++                                styles.actionButtonText,
++                                !canUndo && styles.disabledText
++                            ]}>Undo</Text>
++                        </TouchableOpacity>
++
++                        <TouchableOpacity
++                            onPress={handleRedo}
++                            disabled={!canRedo}
++                            style={styles.actionButton}
++                        >
++                            <Text style={[
++                                styles.actionButtonText,
++                                !canRedo && styles.disabledText
++                            ]}>Redo</Text>
++                        </TouchableOpacity>
++
++                        <TouchableOpacity onPress={handleReset} style={styles.actionButton}>
++                            <Text style={styles.actionButtonText}>Reset</Text>
++                        </TouchableOpacity>
++                    </View>
++                </View>
++
++                {validation.isSolved ? (
++                    <Text style={styles.solvedText}>🎉 Puzzle Solved!</Text>
++                ) : (
++                    <Text style={[
++                        styles.subtitle,
++                        validation.errors.length > 0 && styles.errorSubtitle
++                    ]}>
++                        {validation.errors.length > 0
++                            ? 'Has errors'
++                            : !selectionStart ? 'Tap start cell' : !selectionEnd ? 'Tap end cell' : 'Rectangle preview'}
++                    </Text>
++                )}
+             </View>
+ 
+             <View style={styles.boardWrapper}>
+@@ -67,7 +158,11 @@ export default function PuzzleScreen() {
+             </View>
+ 
+             <View style={styles.footer}>
+-                {previewRectangle ? (
++                {validation.isSolved ? (
++                    <View style={styles.solvedFooter}>
++                        <Text style={styles.solvedFooterText}>Well done!</Text>
++                    </View>
++                ) : previewRectangle ? (
+                     <TouchableOpacity
+                         style={styles.placeButton}
+                         onPress={handlePlaceRectangle}
+@@ -91,16 +186,47 @@ const styles = StyleSheet.create({
+     header: {
+         alignItems: 'center',
+         marginBottom: 40,
++        paddingHorizontal: 20,
++        width: '100%',
++    },
++    headerTop: {
++        flexDirection: 'row',
++        justifyContent: 'space-between',
++        alignItems: 'center',
++        width: '100%',
++        marginBottom: 8,
++    },
++    headerActions: {
++        flexDirection: 'row',
+     },
+     title: {
+         fontSize: 24,
+         fontWeight: 'bold',
+         color: '#333',
+     },
++    actionButton: {
++        marginLeft: 12,
++        padding: 6,
++    },
++    actionButtonText: {
++        color: '#007AFF',
++        fontWeight: '600',
++    },
++    disabledText: {
++        color: '#ccc',
++    },
+     subtitle: {
+         fontSize: 16,
+         color: '#666',
+-        marginTop: 4,
++    },
++    errorSubtitle: {
++        color: '#FF3B30',
++        fontWeight: '600',
++    },
++    solvedText: {
++        fontSize: 18,
++        fontWeight: 'bold',
++        color: '#4CD964',
+     },
+     boardWrapper: {
+         alignItems: 'center',
+@@ -110,6 +236,8 @@ const styles = StyleSheet.create({
+         marginTop: 'auto',
+         paddingHorizontal: 20,
+         alignItems: 'center',
++        minHeight: 80,
++        justifyContent: 'center',
+     },
+     instruction: {
+         fontSize: 14,
+@@ -132,5 +260,14 @@ const styles = StyleSheet.create({
+         color: '#fff',
+         fontSize: 18,
+         fontWeight: 'bold',
++    },
++    solvedFooter: {
++        alignItems: 'center',
++    },
++    solvedFooterText: {
++        fontSize: 16,
++        color: '#666',
++        fontWeight: '500',
+     }
+ });
++
+diff --git a/apps/mobile/screens/SettingsScreen.tsx b/apps/mobile/screens/SettingsScreen.tsx
+index 2e01e11e..8594e7b4 100644
+--- a/apps/mobile/screens/SettingsScreen.tsx
++++ b/apps/mobile/screens/SettingsScreen.tsx
+@@ -2,6 +2,10 @@ import React from 'react';
+ import { View, Text, StyleSheet, ScrollView, Switch } from 'react-native';
+ 
+ export default function SettingsScreen() {
++    const [darkMode, setDarkMode] = React.useState(false);
++    const [showTimer, setShowTimer] = React.useState(true);
++    const [vibration, setVibration] = React.useState(true);
++
+     return (
+         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+             <Text style={styles.title}>Settings</Text>
+@@ -9,17 +13,17 @@ export default function SettingsScreen() {
+             <View style={styles.section}>
+                 <View style={styles.row}>
+                     <Text style={styles.rowLabel}>Dark Mode</Text>
+-                    <Switch value={false} />
++                    <Switch value={darkMode} onValueChange={setDarkMode} />
+                 </View>
+ 
+                 <View style={styles.row}>
+                     <Text style={styles.rowLabel}>Show Timer</Text>
+-                    <Switch value={true} />
++                    <Switch value={showTimer} onValueChange={setShowTimer} />
+                 </View>
+ 
+                 <View style={styles.row}>
+                     <Text style={styles.rowLabel}>Vibration</Text>
+-                    <Switch value={true} />
++                    <Switch value={vibration} onValueChange={setVibration} />
+                 </View>
+             </View>
+ 
+diff --git a/apps/mobile/screens/StatsScreen.tsx b/apps/mobile/screens/StatsScreen.tsx
+index c12ad170..63a0500f 100644
+--- a/apps/mobile/screens/StatsScreen.tsx
++++ b/apps/mobile/screens/StatsScreen.tsx
+@@ -1,24 +1,29 @@
+ import React from 'react';
+ import { View, Text, StyleSheet, ScrollView } from 'react-native';
++import { getSessionStats } from '../data/sessionStore';
++import { useIsFocused } from '@react-navigation/native';
+ 
+ export default function StatsScreen() {
++    const stats = getSessionStats();
++    const isFocused = useIsFocused(); // Re-render when navigating to this screen
++
+     return (
+         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+-            <Text style={styles.title}>Your Progress</Text>
++            <Text style={styles.title}>Session Stats</Text>
+ 
+             <View style={styles.card}>
+                 <Text style={styles.cardTitle}>Puzzles Solved</Text>
+-                <Text style={styles.cardValue}>0</Text>
++                <Text style={styles.cardValue}>{stats.puzzlesSolved}</Text>
+             </View>
+ 
+             <View style={styles.card}>
+-                <Text style={styles.cardTitle}>Perfect Games</Text>
+-                <Text style={styles.cardValue}>0</Text>
++                <Text style={styles.cardTitle}>Placements Made</Text>
++                <Text style={styles.cardValue}>{stats.placementsMade}</Text>
+             </View>
+ 
+             <View style={styles.card}>
+-                <Text style={styles.cardTitle}>Time Spent</Text>
+-                <Text style={styles.cardValue}>0m</Text>
++                <Text style={styles.cardTitle}>Undos Used</Text>
++                <Text style={styles.cardValue}>{stats.undosMade}</Text>
+             </View>
+         </ScrollView>
+     );

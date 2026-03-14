@@ -21,8 +21,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     text: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#000',
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#334155', // Sophisticated dark slate
     },
 });
