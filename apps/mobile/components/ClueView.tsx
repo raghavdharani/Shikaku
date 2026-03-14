@@ -1,11 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Clue } from '@shikaku/engine';
 
-export default function AppScreenSkeleton({ title }: { title: string }) {
+interface ClueViewProps {
+    clue: Clue;
+}
+
+export default function ClueView({ clue }: ClueViewProps) {
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>{title}</Text>
-            <Text>Screen Placeholder</Text>
+            <Text style={styles.text}>{clue.value}</Text>
         </View>
     );
 }
@@ -15,11 +19,10 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
     },
-    title: {
+    text: {
         fontSize: 24,
         fontWeight: 'bold',
-        marginBottom: 20,
-    }
+        color: '#000',
+    },
 });

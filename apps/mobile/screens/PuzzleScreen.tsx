@@ -1,37 +1,30 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { getSampleGameState } from '../data/samplePuzzle';
+import BoardView from '../components/BoardView';
 
-import { getSampleBoard } from '../data/samplePuzzle';
-
-const CELL_SIZE = 80;
+const CELL_SIZE = 60;
 
 export default function PuzzleScreen() {
-    const board = getSampleBoard();
+    const gameState = getSampleGameState();
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Puzzle UI (Read-Only)</Text>
-            <View style={[styles.boardContainer, {
-                width: board.width * CELL_SIZE,
-                height: board.height * CELL_SIZE
-            }]}>
-                {/* Draw Grid Cells */}
-                {Array.from({ length: board.height }).map((_, y) => (
-                    <View key={`row-${y}`} style={styles.row}>
-                        {Array.from({ length: board.width }).map((_, x) => {
-                            const clue = board.clues.find(c => c.x === x && c.y === y);
-                            return (
-                                <View key={`cell-${x}-${y}`} style={styles.cell}>
-                                    {clue ? (
-                                        <Text style={styles.clueText}>{clue.value}</Text>
-                                    ) : null}
-                                </View>
-                            );
-                        })}
-                    </View>
-                ))}
+            <View style={styles.header}>
+                <Text style={styles.title}>Classic 2x2</Text>
+                <Text style={styles.subtitle}>Fill the grid</Text>
+            </View>
 
-                {/* Draw initial overlapping Rectangles if needed but empty initially */}
+            <View style={styles.boardWrapper}>
+                <BoardView
+                    board={gameState.board}
+                    rectangles={gameState.rectangles}
+                    cellSize={CELL_SIZE}
+                />
+            </View>
+
+            <View style={styles.footer}>
+                <Text style={styles.instruction}>Tap and drag to draw a rectangle</Text>
             </View>
         </View>
     );
@@ -40,36 +33,36 @@ export default function PuzzleScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         backgroundColor: '#fafafa',
+        paddingVertical: 40,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: 40,
     },
     title: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 20
-    },
-    boardContainer: {
-        borderWidth: 2,
-        borderColor: '#333',
-        backgroundColor: '#fff',
-        flexDirection: 'column'
-    },
-    row: {
-        flexDirection: 'row',
-        height: CELL_SIZE
-    },
-    cell: {
-        width: CELL_SIZE,
-        height: CELL_SIZE,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    clueText: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#000'
+        color: '#333',
+    },
+    subtitle: {
+        fontSize: 16,
+        color: '#666',
+        marginTop: 4,
+    },
+    boardWrapper: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    footer: {
+        marginTop: 'auto',
+        paddingHorizontal: 20,
+        alignItems: 'center',
+    },
+    instruction: {
+        fontSize: 14,
+        color: '#888',
+        fontStyle: 'italic',
+        textAlign: 'center',
     }
 });
