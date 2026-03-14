@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { getSampleGameState } from '../data/samplePuzzle';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { getSampleBoard } from '../data/samplePuzzle';
 import BoardView from '../components/BoardView';
-import { Cell, getRectangleFromCells } from '@shikaku/engine';
+import { Cell, getRectangleFromCells, createGameState, placeRectangle } from '@shikaku/engine';
 
 const CELL_SIZE = 60;
 
 export default function PuzzleScreen() {
-    const gameState = useMemo(() => getSampleGameState(), []);
+    const board = useMemo(() => getSampleBoard(), []);
+    const [gameState, setGameState] = useState(() => createGameState(board));
+
     const [selectionStart, setSelectionStart] = useState<Cell | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<Cell | null>(null);
 
@@ -26,6 +28,22 @@ export default function PuzzleScreen() {
     const previewRectangle = selectionStart && selectionEnd
         ? getRectangleFromCells(selectionStart, selectionEnd)
         : null;
+
+    const handlePlaceRectangle = () => {
+        if (!previewRectangle) return;
+
+        const newRectangle = {
+            ...previewRectangle,
+            id: `rect-${Date.now()}`
+        };
+
+        const newState = placeRectangle(gameState, newRectangle);
+        setGameState(newState);
+
+        // Reset selection
+        setSelectionStart(null);
+        setSelectionEnd(null);
+    };
 
     return (
         <View style={styles.container}>
@@ -49,7 +67,16 @@ export default function PuzzleScreen() {
             </View>
 
             <View style={styles.footer}>
-                <Text style={styles.instruction}>Tap two cells to define a rectangle</Text>
+                {previewRectangle ? (
+                    <TouchableOpacity
+                        style={styles.placeButton}
+                        onPress={handlePlaceRectangle}
+                    >
+                        <Text style={styles.placeButtonText}>Place Rectangle</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <Text style={styles.instruction}>Tap two cells to define a rectangle</Text>
+                )}
             </View>
         </View>
     );
@@ -89,5 +116,21 @@ const styles = StyleSheet.create({
         color: '#888',
         fontStyle: 'italic',
         textAlign: 'center',
+    },
+    placeButton: {
+        backgroundColor: '#FF9500',
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        borderRadius: 8,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    placeButtonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
     }
 });
