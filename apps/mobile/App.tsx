@@ -33,10 +33,6 @@ export default function App() {
           component={LevelSelectScreen}
         />
         <Stack.Screen
-          name="PuzzleSelect"
-          component={PuzzleSelectScreen}
-        />
-        <Stack.Screen
           name="Puzzle"
           component={PuzzleScreen}
         />

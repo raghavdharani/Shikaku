@@ -6,11 +6,19 @@ import { levels } from '../data/levels';
 const PRIMARY_COLOR = '#6366F1'; // Indigo 500
 const BACKGROUND_COLOR = '#F8FAFC'; // Slate 50
 
+import * as progressStore from '../data/progressStore';
+import { Difficulty } from '../data/progressStore';
+
 export default function LevelSelectScreen() {
     const navigation = useNavigation<any>();
+    const progress = progressStore.getProgressSync();
 
-    const handleLevelSelect = (levelId: string) => {
-        navigation.navigate('PuzzleSelect', { levelId });
+    const handleLevelSelect = async (levelId: Difficulty) => {
+        await progressStore.setDifficulty(levelId);
+        const levelData = levels.find(l => l.id === levelId);
+        const currentIdx = progress.puzzleIndex[levelId];
+        const puzzleId = levelData?.puzzles[currentIdx]?.id || levelData?.puzzles[0].id;
+        navigation.navigate('Puzzle', { levelId, puzzleId });
     };
 
     return (
@@ -26,14 +34,16 @@ export default function LevelSelectScreen() {
                         key={level.id}
                         style={styles.levelCard}
                         activeOpacity={0.7}
-                        onPress={() => handleLevelSelect(level.id)}
+                        onPress={() => handleLevelSelect(level.id as Difficulty)}
                     >
                         <View style={styles.levelInfo}>
                             <Text style={styles.levelName}>{level.name}</Text>
                             <Text style={styles.levelDescription}>{level.description}</Text>
                         </View>
                         <View style={styles.badge}>
-                            <Text style={styles.badgeText}>{level.puzzles.length} Puzzles</Text>
+                            <Text style={styles.badgeText}>
+                                {progress.solvedCount[level.id as Difficulty]} / {level.puzzles.length} Solved
+                            </Text>
                         </View>
                     </TouchableOpacity>
                 ))}
