@@ -34,3 +34,17 @@ Build a mobile-first Shikaku puzzle game that feels clean, fast, and fair on iOS
 - Touch interactions must work comfortably with one hand
 - Puzzle logic must remain outside UI components
 - State should be recoverable if the app is backgrounded
+
+## Placement behavior
+
+The default rectangle placement behavior is **replace**.
+
+When a player places a rectangle that overlaps one or more existing rectangles:
+
+1. The overlapping rectangles are removed
+2. The new rectangle is added
+3. The change is recorded as a single undoable action
+4. Undo restores the previous rectangles
+5. Redo reapplies the replacement
+
+Other placement policies (`reject`, `allow`) exist for testing and experimentation, but MVP gameplay uses `replace`.
