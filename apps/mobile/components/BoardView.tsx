@@ -1,15 +1,27 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Board, PlacedRectangle } from '@shikaku/engine';
+import { Board, PlacedRectangle, Rectangle, Cell } from '@shikaku/engine';
 import GridCell from './GridCell';
 
 interface BoardViewProps {
     board: Board;
     rectangles: PlacedRectangle[];
     cellSize: number;
+    previewRectangle?: Rectangle | null;
+    onCellPress: (x: number, y: number) => void;
+    selectionStart?: Cell | null;
+    selectionEnd?: Cell | null;
 }
 
-export default function BoardView({ board, rectangles, cellSize }: BoardViewProps) {
+export default function BoardView({
+    board,
+    rectangles,
+    cellSize,
+    previewRectangle,
+    onCellPress,
+    selectionStart,
+    selectionEnd
+}: BoardViewProps) {
     return (
         <View style={[styles.container, { width: board.width * cellSize, height: board.height * cellSize }]}>
             {/* Background Grid */}
@@ -18,6 +30,8 @@ export default function BoardView({ board, rectangles, cellSize }: BoardViewProp
                     <View key={`row-${y}`} style={styles.row}>
                         {Array.from({ length: board.width }).map((_, x) => {
                             const clue = board.clues.find(c => c.x === x && c.y === y);
+                            const isSelected = (selectionStart?.x === x && selectionStart?.y === y) ||
+                                (selectionEnd?.x === x && selectionEnd?.y === y);
                             return (
                                 <GridCell
                                     key={`cell-${x}-${y}`}
@@ -25,6 +39,8 @@ export default function BoardView({ board, rectangles, cellSize }: BoardViewProp
                                     y={y}
                                     size={cellSize}
                                     clue={clue}
+                                    onPress={onCellPress}
+                                    isSelected={isSelected}
                                 />
                             );
                         })}
@@ -47,6 +63,21 @@ export default function BoardView({ board, rectangles, cellSize }: BoardViewProp
                     ]}
                 />
             ))}
+
+            {/* Preview Rectangle Overlay */}
+            {previewRectangle && (
+                <View
+                    style={[
+                        styles.previewRectangle,
+                        {
+                            left: previewRectangle.x * cellSize,
+                            top: previewRectangle.y * cellSize,
+                            width: previewRectangle.width * cellSize,
+                            height: previewRectangle.height * cellSize,
+                        },
+                    ]}
+                />
+            )}
         </View>
     );
 }
@@ -69,5 +100,12 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#007AFF',
         backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    },
+    previewRectangle: {
+        position: 'absolute',
+        borderWidth: 2,
+        borderColor: '#FF9500',
+        backgroundColor: 'rgba(255, 149, 0, 0.2)',
+        borderStyle: 'dashed',
     },
 });

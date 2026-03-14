@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Cell, Clue } from '@shikaku/engine';
 import ClueView from './ClueView';
 
@@ -8,13 +8,23 @@ interface GridCellProps {
     y: number;
     size: number;
     clue?: Clue;
+    onPress: (x: number, y: number) => void;
+    isSelected?: boolean;
 }
 
-export default function GridCell({ clue, size }: GridCellProps) {
+export default function GridCell({ clue, size, x, y, onPress, isSelected }: GridCellProps) {
     return (
-        <View style={[styles.container, { width: size, height: size }]}>
+        <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => onPress(x, y)}
+            style={[
+                styles.container,
+                { width: size, height: size },
+                isSelected && styles.selected
+            ]}
+        >
             {clue && <ClueView clue={clue} />}
-        </View>
+        </TouchableOpacity>
     );
 }
 
@@ -25,4 +35,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    selected: {
+        backgroundColor: '#E6F4FE',
+    }
 });
