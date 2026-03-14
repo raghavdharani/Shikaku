@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, StyleSheet, PanResponder, GestureResponderEvent } from 'react-native';
 import { Board, PlacedRectangle, Rectangle, Cell } from '@shikaku/engine';
 import GridCell from './GridCell';
 
@@ -8,7 +8,9 @@ interface BoardViewProps {
     rectangles: PlacedRectangle[];
     cellSize: number;
     previewRectangle?: Rectangle | null;
-    onCellPress: (x: number, y: number) => void;
+    onDrawStart: (x: number, y: number) => void;
+    onDrawMove: (x: number, y: number) => void;
+    onDrawEnd: (x: number, y: number, startX: number, startY: number) => void;
     selectionStart?: Cell | null;
     selectionEnd?: Cell | null;
 }
@@ -18,10 +20,53 @@ export default function BoardView({
     rectangles,
     cellSize,
     previewRectangle,
-    onCellPress,
+    onDrawStart,
+    onDrawMove,
+    onDrawEnd,
     selectionStart,
     selectionEnd
 }: BoardViewProps) {
+    const callbacks = useRef({ onDrawStart, onDrawMove, onDrawEnd });
+    const localStartCell = useRef<Cell | null>(null);
+
+    useEffect(() => {
+        callbacks.current = { onDrawStart, onDrawMove, onDrawEnd };
+    }, [onDrawStart, onDrawMove, onDrawEnd]);
+
+    const getCellFromEvent = (evt: GestureResponderEvent) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        const x = Math.max(0, Math.min(board.width - 1, Math.floor(locationX / cellSize)));
+        const y = Math.max(0, Math.min(board.height - 1, Math.floor(locationY / cellSize)));
+        return { x, y };
+    };
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: (evt) => {
+                const cell = getCellFromEvent(evt);
+                localStartCell.current = cell;
+                callbacks.current.onDrawStart(cell.x, cell.y);
+            },
+            onPanResponderMove: (evt) => {
+                const cell = getCellFromEvent(evt);
+                callbacks.current.onDrawMove(cell.x, cell.y);
+            },
+            onPanResponderRelease: (evt) => {
+                const cell = getCellFromEvent(evt);
+                if (localStartCell.current) {
+                    callbacks.current.onDrawEnd(cell.x, cell.y, localStartCell.current.x, localStartCell.current.y);
+                }
+                localStartCell.current = null;
+            },
+            onPanResponderTerminate: () => {
+                localStartCell.current = null;
+                callbacks.current.onDrawEnd(-1, -1, -1, -1);
+            }
+        })
+    ).current;
+
     return (
         <View style={[styles.container, { width: board.width * cellSize, height: board.height * cellSize }]}>
             {/* Background Grid */}
@@ -30,17 +75,15 @@ export default function BoardView({
                     <View key={`row-${y}`} style={styles.row}>
                         {Array.from({ length: board.width }).map((_, x) => {
                             const clue = board.clues.find(c => c.x === x && c.y === y);
-                            const isSelected = (selectionStart?.x === x && selectionStart?.y === y) ||
-                                (selectionEnd?.x === x && selectionEnd?.y === y);
+                            const isStart = selectionStart?.x === x && selectionStart?.y === y;
+                            const isEnd = selectionEnd?.x === x && selectionEnd?.y === y;
                             return (
                                 <GridCell
                                     key={`cell-${x}-${y}`}
-                                    x={x}
-                                    y={y}
                                     size={cellSize}
                                     clue={clue}
-                                    onPress={onCellPress}
-                                    isSelected={isSelected}
+                                    isStart={isStart}
+                                    isEnd={isEnd}
                                 />
                             );
                         })}
@@ -78,6 +121,12 @@ export default function BoardView({
                     ]}
                 />
             )}
+
+            {/* Touch Layer Overlay */}
+            <View
+                style={StyleSheet.absoluteFill}
+                {...panResponder.panHandlers}
+            />
         </View>
     );
 }
@@ -88,6 +137,12 @@ const styles = StyleSheet.create({
         borderColor: '#333',
         backgroundColor: '#fff',
         position: 'relative',
+        // Shadow for board depth
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
     },
     grid: {
         flex: 1,
@@ -99,13 +154,15 @@ const styles = StyleSheet.create({
         position: 'absolute',
         borderWidth: 2,
         borderColor: '#007AFF',
-        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+        backgroundColor: 'rgba(0, 122, 255, 0.2)',
+        borderRadius: 4,
     },
     previewRectangle: {
         position: 'absolute',
         borderWidth: 2,
         borderColor: '#FF9500',
-        backgroundColor: 'rgba(255, 149, 0, 0.2)',
+        backgroundColor: 'rgba(255, 149, 0, 0.3)',
         borderStyle: 'dashed',
+        borderRadius: 4,
     },
 });

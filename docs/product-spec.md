@@ -25,9 +25,19 @@ Build a mobile-first Shikaku puzzle game that feels clean, fast, and fair on iOS
 ## Core user flow
 1. Open app
 2. Pick puzzle or difficulty
-3. Solve puzzle by marking rectangles on the board
-4. Get immediate feedback on invalid placements when enabled
-5. Complete puzzle and view results
+3. Solve puzzle by dragging or tapping on the board to draw rectangles
+4. Rectangles are placed upon lifting the finger (release-to-commit)
+5. Tap-and-release on a single cell commits a 1x1 rectangle
+6. Overlapping existing rectangles are replaced by the new placement
+7. Tap "Submit Puzzle" to check for errors/solved status
+8. Complete puzzle and view results
+
+## Validation model
+- **Submit-based validation:** The game does *not* validate continuously during play.
+- The player places rectangles freely.
+- The player must press "Submit Puzzle" to check their answer.
+- If solved, the board locks and shows success.
+- If incorrect, a message indicates errors, and the player can continue editing.
 
 ## Design constraints
 - Portrait-first layout
@@ -37,14 +47,14 @@ Build a mobile-first Shikaku puzzle game that feels clean, fast, and fair on iOS
 
 ## Placement behavior
 
-The default rectangle placement behavior is **replace**.
+The default rectangle placement behavior is **atomic replace**.
 
-When a player places a rectangle that overlaps one or more existing rectangles:
+When a player places a rectangle (via tap or drag) that overlaps one or more existing rectangles:
 
-1. The overlapping rectangles are removed
+1. All overlapped rectangles are removed
 2. The new rectangle is added
-3. The change is recorded as a single undoable action
-4. Undo restores the previous rectangles
-5. Redo reapplies the replacement
+3. This occurs as a single atomic action in history
+4. Undo restores all removed rectangles in one step
+5. Redo reapplies the replacement in one step
 
 Other placement policies (`reject`, `allow`) exist for testing and experimentation, but MVP gameplay uses `replace`.

@@ -1,41 +1,46 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Cell, Clue } from '@shikaku/engine';
+import { View, StyleSheet } from 'react-native';
+import { Clue } from '@shikaku/engine';
 import ClueView from './ClueView';
 
 interface GridCellProps {
-    x: number;
-    y: number;
     size: number;
     clue?: Clue;
-    onPress: (x: number, y: number) => void;
-    isSelected?: boolean;
+    isStart?: boolean;
+    isEnd?: boolean;
 }
 
-export default function GridCell({ clue, size, x, y, onPress, isSelected }: GridCellProps) {
+export default function GridCell({ clue, size, isStart, isEnd }: GridCellProps) {
     return (
-        <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => onPress(x, y)}
+        <View
             style={[
                 styles.container,
                 { width: size, height: size },
-                isSelected && styles.selected
+                isStart && styles.startCell,
+                isEnd && styles.endCell
             ]}
         >
             {clue && <ClueView clue={clue} />}
-        </TouchableOpacity>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         borderWidth: 0.5,
-        borderColor: '#ddd',
+        borderColor: '#eee',
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#fff',
     },
-    selected: {
+    startCell: {
         backgroundColor: '#E6F4FE',
+        borderColor: '#007AFF',
+        borderWidth: 1.5,
+    },
+    endCell: {
+        backgroundColor: '#FFF4E6',
+        borderColor: '#FF9500',
+        borderWidth: 1.5,
     }
 });

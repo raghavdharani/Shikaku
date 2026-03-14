@@ -2,6 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch } from 'react-native';
 
 export default function SettingsScreen() {
+    const [darkMode, setDarkMode] = React.useState(false);
+    const [showTimer, setShowTimer] = React.useState(true);
+    const [vibration, setVibration] = React.useState(true);
+
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             <Text style={styles.title}>Settings</Text>
@@ -9,17 +13,17 @@ export default function SettingsScreen() {
             <View style={styles.section}>
                 <View style={styles.row}>
                     <Text style={styles.rowLabel}>Dark Mode</Text>
-                    <Switch value={false} />
+                    <Switch value={darkMode} onValueChange={setDarkMode} />
                 </View>
 
                 <View style={styles.row}>
                     <Text style={styles.rowLabel}>Show Timer</Text>
-                    <Switch value={true} />
+                    <Switch value={showTimer} onValueChange={setShowTimer} />
                 </View>
 
                 <View style={styles.row}>
                     <Text style={styles.rowLabel}>Vibration</Text>
-                    <Switch value={true} />
+                    <Switch value={vibration} onValueChange={setVibration} />
                 </View>
             </View>
 

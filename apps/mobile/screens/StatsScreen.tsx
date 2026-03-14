@@ -1,24 +1,29 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { getSessionStats } from '../data/sessionStore';
+import { useIsFocused } from '@react-navigation/native';
 
 export default function StatsScreen() {
+    const stats = getSessionStats();
+    const isFocused = useIsFocused(); // Re-render when navigating to this screen
+
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            <Text style={styles.title}>Your Progress</Text>
+            <Text style={styles.title}>Session Stats</Text>
 
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Puzzles Solved</Text>
-                <Text style={styles.cardValue}>0</Text>
+                <Text style={styles.cardValue}>{stats.puzzlesSolved}</Text>
             </View>
 
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Perfect Games</Text>
-                <Text style={styles.cardValue}>0</Text>
+                <Text style={styles.cardTitle}>Placements Made</Text>
+                <Text style={styles.cardValue}>{stats.placementsMade}</Text>
             </View>
 
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Time Spent</Text>
-                <Text style={styles.cardValue}>0m</Text>
+                <Text style={styles.cardTitle}>Undos Used</Text>
+                <Text style={styles.cardValue}>{stats.undosMade}</Text>
             </View>
         </ScrollView>
     );

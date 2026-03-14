@@ -7,8 +7,10 @@ export default function HomeScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Shikaku</Text>
-            <Text style={styles.subtitle}>Fill the grid with rectangles</Text>
+            <View style={styles.hero}>
+                <Text style={styles.title}>Shikaku</Text>
+                <Text style={styles.subtitle}>The Rectangle Puzzle</Text>
+            </View>
 
             <TouchableOpacity
                 style={styles.button}
@@ -16,6 +18,22 @@ export default function HomeScreen() {
             >
                 <Text style={styles.buttonText}>Start Puzzle</Text>
             </TouchableOpacity>
+
+            <View style={styles.howToPlay}>
+                <Text style={styles.sectionTitle}>How to Play</Text>
+                <View style={styles.instructionRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={styles.instructionText}>Each number must be in a rectangle of that same area.</Text>
+                </View>
+                <View style={styles.instructionRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={styles.instructionText}>Each rectangle must contain exactly one number.</Text>
+                </View>
+                <View style={styles.instructionRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={styles.instructionText}>Rectangles cannot overlap.</Text>
+                </View>
+            </View>
         </View>
     );
 }
@@ -26,33 +44,69 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#fff',
-        padding: 20,
+        padding: 40,
+    },
+    hero: {
+        alignItems: 'center',
+        marginBottom: 60,
     },
     title: {
-        fontSize: 48,
-        fontWeight: 'bold',
+        fontSize: 56,
+        fontWeight: '900',
         color: '#333',
-        marginBottom: 8,
+        letterSpacing: -1,
     },
     subtitle: {
-        fontSize: 18,
-        color: '#666',
-        marginBottom: 40,
+        fontSize: 20,
+        color: '#888',
+        fontWeight: '500',
+        marginTop: -4,
     },
     button: {
         backgroundColor: '#007AFF',
-        paddingHorizontal: 32,
-        paddingVertical: 16,
-        borderRadius: 8,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        paddingHorizontal: 48,
+        paddingVertical: 18,
+        borderRadius: 16,
+        elevation: 4,
+        shadowColor: '#007AFF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        marginBottom: 60,
     },
     buttonText: {
         color: '#fff',
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    howToPlay: {
+        width: '100%',
+        backgroundColor: '#f9f9f9',
+        padding: 24,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#f0f0f0',
+    },
+    sectionTitle: {
         fontSize: 18,
-        fontWeight: '600',
+        fontWeight: '700',
+        color: '#444',
+        marginBottom: 16,
+    },
+    instructionRow: {
+        flexDirection: 'row',
+        marginBottom: 10,
+    },
+    bullet: {
+        fontSize: 16,
+        color: '#007AFF',
+        marginRight: 10,
+        fontWeight: 'bold',
+    },
+    instructionText: {
+        fontSize: 15,
+        color: '#666',
+        lineHeight: 20,
+        flex: 1,
     }
 });

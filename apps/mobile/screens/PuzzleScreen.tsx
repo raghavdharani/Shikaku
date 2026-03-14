@@ -2,7 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { getSampleBoard } from '../data/samplePuzzle';
 import BoardView from '../components/BoardView';
-import { Cell, getRectangleFromCells, createGameState, placeRectangle } from '@shikaku/engine';
+import {
+    Cell,
+    getRectangleFromCells,
+    createGameState,
+    placeRectangle,
+    validateSolvedBoard,
+    undo,
+    redo
+} from '@shikaku/engine';
+import { incrementPlacements, incrementUndos, incrementSolved } from '../data/sessionStore';
 
 const CELL_SIZE = 60;
 
@@ -13,45 +22,118 @@ export default function PuzzleScreen() {
     const [selectionStart, setSelectionStart] = useState<Cell | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<Cell | null>(null);
 
-    const handleCellPress = (x: number, y: number) => {
-        if (!selectionStart) {
-            setSelectionStart({ x, y });
+    // validationState is populated only when "Submit Puzzle" is pressed
+    const [validationState, setValidationState] = useState<{ isSolved: boolean, errors: any[] } | null>(null);
+
+    const canUndo = gameState.history.past.length > 0;
+    const canRedo = gameState.history.future.length > 0;
+
+    const handleDrawStart = (x: number, y: number) => {
+        if (validationState?.isSolved) return;
+        setSelectionStart({ x, y });
+        setSelectionEnd({ x, y });
+        setValidationState(null); // Clear errors
+    };
+
+    const handleDrawMove = (x: number, y: number) => {
+        if (validationState?.isSolved) return;
+        if (!selectionStart) return;
+        setSelectionEnd({ x, y });
+    };
+
+    const handleDrawEnd = (x: number, y: number, startX: number, startY: number) => {
+        if (validationState?.isSolved) return;
+
+        // Handle termination or invalid start
+        if (startX === -1 || startY === -1) {
+            setSelectionStart(null);
             setSelectionEnd(null);
-        } else if (!selectionEnd) {
-            setSelectionEnd({ x, y });
-        } else {
-            setSelectionStart({ x, y });
-            setSelectionEnd(null);
+            return;
         }
+
+        const startCell = { x: startX, y: startY };
+        const endCell = { x, y };
+        const rectModel = getRectangleFromCells(startCell, endCell);
+
+        const newRectangle = {
+            ...rectModel,
+            id: `rect-${Date.now()}`
+        };
+
+        const newState = placeRectangle(gameState, newRectangle);
+        setGameState(newState);
+        incrementPlacements();
+
+        setSelectionStart(null);
+        setSelectionEnd(null);
+    };
+
+    const handleSubmit = () => {
+        const result = validateSolvedBoard(board, gameState.rectangles);
+        setValidationState(result);
+        if (result.isSolved) {
+            incrementSolved();
+        }
+    };
+
+    const handleUndo = () => {
+        if (!canUndo) return;
+        setGameState(undo(gameState));
+        incrementUndos();
+        setSelectionStart(null);
+        setSelectionEnd(null);
+        setValidationState(null);
+    };
+
+    const handleRedo = () => {
+        if (!canRedo) return;
+        setGameState(redo(gameState));
+        setSelectionStart(null);
+        setSelectionEnd(null);
+        setValidationState(null);
+    };
+
+    const handleReset = () => {
+        setGameState(createGameState(board));
+        setSelectionStart(null);
+        setSelectionEnd(null);
+        setValidationState(null);
     };
 
     const previewRectangle = selectionStart && selectionEnd
         ? getRectangleFromCells(selectionStart, selectionEnd)
         : null;
 
-    const handlePlaceRectangle = () => {
-        if (!previewRectangle) return;
-
-        const newRectangle = {
-            ...previewRectangle,
-            id: `rect-${Date.now()}`
-        };
-
-        const newState = placeRectangle(gameState, newRectangle);
-        setGameState(newState);
-
-        // Reset selection
-        setSelectionStart(null);
-        setSelectionEnd(null);
-    };
-
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>Classic 2x2</Text>
-                <Text style={styles.subtitle}>
-                    {!selectionStart ? 'Tap start cell' : !selectionEnd ? 'Tap end cell' : 'Rectangle preview'}
-                </Text>
+                <View style={styles.headerTop}>
+                    <Text style={styles.title}>Classic 2x2</Text>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity onPress={handleUndo} disabled={!canUndo} style={styles.actionButton}>
+                            <Text style={[styles.actionButtonText, !canUndo && styles.disabledText]}>Undo</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleRedo} disabled={!canRedo} style={styles.actionButton}>
+                            <Text style={[styles.actionButtonText, !canRedo && styles.disabledText]}>Redo</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleReset} style={styles.actionButton}>
+                            <Text style={styles.actionButtonText}>Reset</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {validationState?.isSolved ? (
+                    <Text style={styles.solvedText}>🎉 Puzzle Solved!</Text>
+                ) : (
+                    <Text style={[
+                        styles.subtitle,
+                        validationState?.errors && validationState.errors.length > 0 && styles.errorSubtitle
+                    ]}>
+                        {validationState?.errors && validationState.errors.length > 0
+                            ? 'There are mistakes in your solution'
+                            : 'Drag to place rectangles'}
+                    </Text>
+                )}
             </View>
 
             <View style={styles.boardWrapper}>
@@ -60,22 +142,23 @@ export default function PuzzleScreen() {
                     rectangles={gameState.rectangles}
                     cellSize={CELL_SIZE}
                     previewRectangle={previewRectangle}
-                    onCellPress={handleCellPress}
+                    onDrawStart={handleDrawStart}
+                    onDrawMove={handleDrawMove}
+                    onDrawEnd={handleDrawEnd}
                     selectionStart={selectionStart}
                     selectionEnd={selectionEnd}
                 />
             </View>
 
             <View style={styles.footer}>
-                {previewRectangle ? (
-                    <TouchableOpacity
-                        style={styles.placeButton}
-                        onPress={handlePlaceRectangle}
-                    >
-                        <Text style={styles.placeButtonText}>Place Rectangle</Text>
-                    </TouchableOpacity>
+                {validationState?.isSolved ? (
+                    <View style={styles.solvedFooter}>
+                        <Text style={styles.solvedFooterText}>Well done!</Text>
+                    </View>
                 ) : (
-                    <Text style={styles.instruction}>Tap two cells to define a rectangle</Text>
+                    <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+                        <Text style={styles.submitButtonText}>Submit Puzzle</Text>
+                    </TouchableOpacity>
                 )}
             </View>
         </View>
@@ -86,21 +169,52 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fafafa',
-        paddingVertical: 40,
+        paddingVertical: 60,
     },
     header: {
         alignItems: 'center',
         marginBottom: 40,
+        paddingHorizontal: 20,
+        width: '100%',
+    },
+    headerTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        marginBottom: 8,
+    },
+    headerActions: {
+        flexDirection: 'row',
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#333',
     },
+    actionButton: {
+        marginLeft: 12,
+        padding: 6,
+    },
+    actionButtonText: {
+        color: '#007AFF',
+        fontWeight: '600',
+    },
+    disabledText: {
+        color: '#ccc',
+    },
     subtitle: {
         fontSize: 16,
         color: '#666',
-        marginTop: 4,
+    },
+    errorSubtitle: {
+        color: '#FF3B30',
+        fontWeight: '600',
+    },
+    solvedText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#4CD964',
     },
     boardWrapper: {
         alignItems: 'center',
@@ -110,27 +224,32 @@ const styles = StyleSheet.create({
         marginTop: 'auto',
         paddingHorizontal: 20,
         alignItems: 'center',
+        minHeight: 80,
+        justifyContent: 'center',
     },
-    instruction: {
-        fontSize: 14,
-        color: '#888',
-        fontStyle: 'italic',
-        textAlign: 'center',
-    },
-    placeButton: {
-        backgroundColor: '#FF9500',
-        paddingHorizontal: 32,
+    submitButton: {
+        backgroundColor: '#007AFF',
+        paddingHorizontal: 40,
         paddingVertical: 16,
-        borderRadius: 8,
+        borderRadius: 12,
         elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+        shadowColor: '#007AFF',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
     },
-    placeButtonText: {
+    submitButtonText: {
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    solvedFooter: {
+        alignItems: 'center',
+    },
+    solvedFooterText: {
+        fontSize: 16,
+        color: '#666',
+        fontWeight: '500',
     }
 });
+
