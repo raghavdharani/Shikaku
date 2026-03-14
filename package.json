@@ -1,0 +1,18 @@
+{
+  "name": "shikaku",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "spec:canonicalize": "node scripts/canonicalize-spec.mjs",
+    "spec:hash": "node scripts/hash-spec.mjs",
+    "spec:sync": "npm run spec:canonicalize && npm run spec:hash",
+    "validate:spec": "node scripts/validate-spec.mjs",
+    "test:engine": "npm --workspace @shikaku/engine test",
+    "test": "npm run validate:spec && npm run test:engine",
+    "ci": "npm run validate:spec && npm run spec:sync && npm run test:engine"
+  }
+}

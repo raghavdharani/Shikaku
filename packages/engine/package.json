@@ -1,0 +1,9 @@
+{
+  "name": "@shikaku/engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

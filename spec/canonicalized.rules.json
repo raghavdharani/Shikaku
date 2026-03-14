@@ -1,0 +1,58 @@
+{
+  "board": {
+    "allowedSizes": [
+      {
+        "height": 6,
+        "width": 6
+      },
+      {
+        "height": 8,
+        "width": 8
+      },
+      {
+        "height": 10,
+        "width": 10
+      }
+    ],
+    "minHeight": 6,
+    "minWidth": 6
+  },
+  "difficultyTiers": [
+    {
+      "boardSizes": [
+        "6x6"
+      ],
+      "name": "easy",
+      "notes": "Lower ambiguity and simpler factor combinations"
+    },
+    {
+      "boardSizes": [
+        "8x8"
+      ],
+      "name": "medium",
+      "notes": "Moderate branching complexity"
+    },
+    {
+      "boardSizes": [
+        "10x10"
+      ],
+      "name": "hard",
+      "notes": "Higher ambiguity and deeper solver search"
+    }
+  ],
+  "game": {
+    "name": "Shikaku",
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  },
+  "rules": {
+    "fullCoverageRequired": true,
+    "overlapAllowed": false,
+    "rectangleAreaEqualsClue": true,
+    "requireUniqueSolution": true,
+    "singleCluePerRectangle": true
+  },
+  "specVersion": "1.0.0"
+}

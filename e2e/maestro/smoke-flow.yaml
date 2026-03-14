@@ -1,0 +1,4 @@
+appId: com.example.shikaku
+---
+- launchApp
+- assertVisible: "Shikaku"
