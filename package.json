@@ -14,5 +14,10 @@
     "test:engine": "npm --workspace @shikaku/engine test",
     "test": "npm run validate:spec && npm run test:engine",
     "ci": "npm run validate:spec && npm run spec:sync && npm run test:engine"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.2.14",
+    "typescript": "^5.9.3"
   }
 }
