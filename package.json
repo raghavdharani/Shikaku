@@ -11,13 +11,16 @@
     "spec:hash": "node scripts/hash-spec.mjs",
     "spec:sync": "npm run spec:canonicalize && npm run spec:hash",
     "validate:spec": "node scripts/validate-spec.mjs",
+    "validate:puzzles": "npm --workspace mobile run validate:puzzles",
     "test:engine": "npm --workspace @shikaku/engine test",
-    "test": "npm run validate:spec && npm run test:engine",
-    "ci": "npm run validate:spec && npm run spec:sync && npm run test:engine"
+    "test": "npm run validate:spec && npm run validate:puzzles && npm run test:engine",
+    "ci": "npm run validate:spec && npm run validate:puzzles && npm run spec:sync && npm run test:engine",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/react": "^19.2.14",
+    "husky": "^9.1.7",
     "typescript": "^5.9.3"
   }
 }

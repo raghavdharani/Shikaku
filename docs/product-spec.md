@@ -5,9 +5,10 @@ Build a mobile-first Shikaku puzzle game that feels clean, fast, and fair on iOS
 
 ## MVP goals
 - Let a player start and finish a Shikaku puzzle quickly
-- Support multiple board sizes and difficulty tiers
-- Save progress locally
-- Provide hints, undo, redo, and puzzle validation feedback
+- Support sequential difficulty tracks (Beginner, Intermediate, Expert)
+- Move users through a pre-built, validated puzzle sequence
+- Save progression and difficulty state locally
+- Provide clear visual feedback on board state and errors
 - Work offline
 
 ## Target audience
@@ -16,45 +17,40 @@ Build a mobile-first Shikaku puzzle game that feels clean, fast, and fair on iOS
 - Players looking for short, satisfying sessions
 
 ## Non-goals for MVP
-- Multiplayer
-- Social sharing
-- Cloud sync
-- Leaderboards
+- Random puzzle generation at runtime
+- Multiplayer / Social features
+- Cloud sync / Leaderboards
 - In-app purchases
 
 ## Core user flow
-1. Open app
-2. Pick puzzle or difficulty
-3. Solve puzzle by dragging or tapping on the board to draw rectangles
-4. Rectangles are placed upon lifting the finger (release-to-commit)
-5. Tap-and-release on a single cell commits a 1x1 rectangle
-6. Overlapping existing rectangles are replaced by the new placement
-7. Tap "Submit Puzzle" to check for errors/solved status
-8. Complete puzzle and view results
+1. **Open app**: Land on Home Screen showing current track progress.
+2. **Select Difficulty**: Choose from Beginner, Intermediate, or Expert tracks.
+3. **Puzzle Journey**: Start or Resume the sequential puzzle sequence for that track.
+4. **Solve board**: Drag or tap to draw rectangles.
+5. **Release-to-commit**: Rectangles are placed upon lifting the finger.
+6. **Atomic replace**: New rectangles automatically replace any overlapping existing ones.
+7. **Submit check**: Tap "Check Solution" to validate the board.
+8. **Progression**: After solving, immediately move to the next puzzle in the sequence.
+
+## Progression Model
+- **Guided Tracks**: Puzzles are served from a static, pre-validated catalog of ~120 puzzles.
+- **Persistence**: User's current index and difficulty are saved. 
+- **Victory States**: Meaningful celebration upon solving and completion of a track.
 
 ## Validation model
-- **Submit-based validation:** The game does *not* validate continuously during play.
+- **Submit-based validation**: The game does *not* validate continuously during play.
 - The player places rectangles freely.
-- The player must press "Submit Puzzle" to check their answer.
-- If solved, the board locks and shows success.
-- If incorrect, a message indicates errors, and the player can continue editing.
+- The player must press "Check Solution" to check their answer.
+- If solved, the board locks, celebration animations play, and "Next Puzzle" appears.
+- If incorrect, a message indicates errors (e.g., overlaps), and the player continues editing.
 
 ## Design constraints
 - Portrait-first layout
-- Touch interactions must work comfortably with one hand
-- Puzzle logic must remain outside UI components
-- State should be recoverable if the app is backgrounded
+- Glassmorphism and modern Slate/Indigo palette
+- Immersive gameplay: Bottom tabs are hidden during puzzle solving.
+- Performance: Logic must remain in `@shikaku/engine`.
 
-## Placement behavior
-
-The default rectangle placement behavior is **atomic replace**.
-
-When a player places a rectangle (via tap or drag) that overlaps one or more existing rectangles:
-
-1. All overlapped rectangles are removed
-2. The new rectangle is added
-3. This occurs as a single atomic action in history
-4. Undo restores all removed rectangles in one step
-5. Redo reapplies the replacement in one step
-
-Other placement policies (`reject`, `allow`) exist for testing and experimentation, but MVP gameplay uses `replace`.
+## Interaction Logic
+- **Single Action Modification**: Rectangles are modified only via new placements.
+- **No Undo/Redo**: Intentional design decision to keep interaction simple and high-stakes.
+- **Overwriting**: Overlapping existing rectangles is the primary way to "delete" or "adjust" paths.

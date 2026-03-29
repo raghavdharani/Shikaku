@@ -1,15 +1,20 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
-import { getSampleBoard } from '../data/samplePuzzle';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Dimensions } from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { levels } from '../data/levels';
+import { mapRawPuzzleToBoard } from '../data/puzzles/mapper';
 import BoardView from '../components/BoardView';
 import {
     Cell,
     getRectangleFromCells,
     createGameState,
     placeRectangle,
-    validateSolvedBoard
+    validateSolvedBoard,
+    PlacedRectangle
 } from '@shikaku/engine';
-import { incrementPlacements, incrementUndos, incrementSolved } from '../data/sessionStore';
+import { incrementPlacements, incrementSolved } from '../data/sessionStore';
+import * as progressStore from '../data/progressStore';
+import { Difficulty } from '../data/progressStore';
 
 const PRIMARY_COLOR = '#6366F1'; // Indigo 500
 const SECONDARY_COLOR = '#94A3B8'; // Slate 400
@@ -18,83 +23,76 @@ const SUCCESS_COLOR = '#10B981'; // Emerald 500
 const BACKGROUND_COLOR = '#F8FAFC'; // Slate 50
 
 export default function PuzzleScreen() {
-    const board = useMemo(() => getSampleBoard(), []);
-    const [boardLayout, setBoardLayout] = useState<{ width: number, height: number } | null>(null);
+    const route = useRoute<any>();
+    const navigation = useNavigation<any>();
+    const { levelId, puzzleId } = route.params || {};
 
-    // Compute cell size dynamically based on actually measured space
-    const cellSize = useMemo(() => {
-        if (!boardLayout) return 0;
+    const level = useMemo(() => levels.find(l => l.id === levelId), [levelId]);
+    const puzzle = useMemo(() => level?.puzzles.find(p => p.id === puzzleId), [level, puzzleId]);
+    const board = useMemo(() => puzzle ? mapRawPuzzleToBoard(puzzle) : null, [puzzle]);
 
-        // Apply a little internal padding to the measured area for breathing room
-        const padding = 20;
-        const availableWidth = boardLayout.width - padding;
-        const availableHeight = boardLayout.height - padding;
-
-        const sizeByWidth = Math.floor(availableWidth / board.width);
-        const sizeByHeight = Math.floor(availableHeight / board.height);
-
-        // Return smaller of the two dimensions to ensure it fits, 
-        // with a sane minimum (30) and a maximum cap (60) for visual comfort.
-        return Math.max(30, Math.min(sizeByWidth, sizeByHeight, 60));
-    }, [boardLayout, board.width, board.height]);
-
-    const handleLayout = (event: any) => {
-        const { width, height } = event.nativeEvent.layout;
-        if (width !== boardLayout?.width || height !== boardLayout?.height) {
-            setBoardLayout({ width, height });
-        }
-    };
-
-    const [gameState, setGameState] = useState(() => createGameState(board));
-
+    const [gameState, setGameState] = useState<any>(() => board ? createGameState(board) : null);
     const [selectionStart, setSelectionStart] = useState<Cell | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<Cell | null>(null);
+    const [validationState, setValidationState] = useState<any>(null);
+    const [boardWidth, setBoardWidth] = useState(0);
 
-    const [validationState, setValidationState] = useState<{ isSolved: boolean, errors: any[] } | null>(null);
-
-    // Animations
-    const solvedScale = useRef(new Animated.Value(0.8)).current;
+    // Animation for solved state
     const solvedOpacity = useRef(new Animated.Value(0)).current;
+    const solvedScale = useRef(new Animated.Value(0.9)).current;
+
+    useEffect(() => {
+        if (board) {
+            setGameState(createGameState(board));
+            setValidationState(null);
+            setSelectionStart(null);
+            setSelectionEnd(null);
+            solvedOpacity.setValue(0);
+            solvedScale.setValue(0.9);
+        }
+    }, [board]);
 
     useEffect(() => {
         if (validationState?.isSolved) {
             Animated.parallel([
-                Animated.spring(solvedScale, {
-                    toValue: 1,
-                    friction: 6,
-                    tension: 4,
-                    useNativeDriver: true,
-                }),
                 Animated.timing(solvedOpacity, {
                     toValue: 1,
-                    duration: 300,
-                    easing: Easing.out(Easing.ease),
+                    duration: 600,
+                    useNativeDriver: true,
+                    easing: Easing.out(Easing.back(1.5)),
+                }),
+                Animated.spring(solvedScale, {
+                    toValue: 1,
+                    friction: 8,
+                    tension: 40,
                     useNativeDriver: true,
                 })
             ]).start();
-        } else {
-            solvedScale.setValue(0.8);
-            solvedOpacity.setValue(0);
         }
     }, [validationState?.isSolved]);
+
+    const cellSize = useMemo(() => {
+        if (!board || boardWidth === 0) return 0;
+        return (boardWidth - 40) / board.width;
+    }, [board?.width, boardWidth]);
+
+    const handleLayout = (event: any) => {
+        setBoardWidth(event.nativeEvent.layout.width);
+    };
 
     const handleDrawStart = (x: number, y: number) => {
         if (validationState?.isSolved) return;
         setSelectionStart({ x, y });
         setSelectionEnd({ x, y });
-        setValidationState(null); // Clear errors
     };
 
     const handleDrawMove = (x: number, y: number) => {
         if (validationState?.isSolved) return;
-        if (!selectionStart) return;
         setSelectionEnd({ x, y });
     };
 
     const handleDrawEnd = (x: number, y: number, startX: number, startY: number) => {
-        if (validationState?.isSolved) return;
-
-        if (startX === -1 || startY === -1) {
+        if (validationState?.isSolved || !board || !gameState) {
             setSelectionStart(null);
             setSelectionEnd(null);
             return;
@@ -102,22 +100,21 @@ export default function PuzzleScreen() {
 
         const startCell = { x: startX, y: startY };
         const endCell = { x, y };
-        const rectModel = getRectangleFromCells(startCell, endCell);
 
-        const newRectangle = {
-            ...rectModel,
-            id: `rect-${Date.now()}`
+        const rect = getRectangleFromCells(startCell, endCell);
+        const placedRect: PlacedRectangle = {
+            ...rect,
+            id: Math.random().toString(36).substr(2, 9)
         };
-
-        const newState = placeRectangle(gameState, newRectangle);
-        setGameState(newState);
-        incrementPlacements();
-
+        const nextState = placeRectangle(gameState, placedRect);
+        setGameState(nextState);
         setSelectionStart(null);
         setSelectionEnd(null);
+        incrementPlacements();
     };
 
     const handleSubmit = () => {
+        if (!board || !gameState) return;
         const result = validateSolvedBoard(board, gameState.rectangles);
         setValidationState(result);
         if (result.isSolved) {
@@ -126,10 +123,33 @@ export default function PuzzleScreen() {
     };
 
     const handleReset = () => {
+        if (!board) return;
         setGameState(createGameState(board));
         setSelectionStart(null);
         setSelectionEnd(null);
         setValidationState(null);
+    };
+
+    if (!level || !puzzle || !board || !gameState) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={styles.title}>Puzzle Not Found</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.submitButton, { marginTop: 20, width: 'auto', paddingHorizontal: 30 }]}>
+                    <Text style={styles.submitButtonText}>Return to Tracks</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const currentPuzzleIndex = level.puzzles.indexOf(puzzle);
+    const hasNextPuzzle = currentPuzzleIndex < level.puzzles.length - 1;
+    const nextPuzzle = hasNextPuzzle ? level.puzzles[currentPuzzleIndex + 1] : null;
+
+    const handleNextPuzzle = async () => {
+        if (nextPuzzle) {
+            await progressStore.advanceProgress(level.id as Difficulty);
+            navigation.replace('Puzzle', { levelId: level.id, puzzleId: nextPuzzle.id });
+        }
     };
 
     const previewRectangle = selectionStart && selectionEnd
@@ -140,18 +160,25 @@ export default function PuzzleScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <View style={styles.headerTop}>
-                    <Text style={styles.title}>Classic 2x2</Text>
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity onPress={handleReset} style={styles.actionButton} activeOpacity={0.6}>
-                            <Text style={styles.actionButtonText}>Reset Board</Text>
+                    <View style={styles.titleContainer}>
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                            <Text style={styles.backButtonLabel}>← Back</Text>
                         </TouchableOpacity>
+                        <Text style={styles.title}>{level.name} — {currentPuzzleIndex + 1}</Text>
                     </View>
+                    {!validationState?.isSolved && (
+                        <View style={styles.headerActions}>
+                            <TouchableOpacity onPress={handleReset} style={styles.actionButton} activeOpacity={0.6}>
+                                <Text style={styles.actionButtonText}>Reset</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
 
                 {validationState?.isSolved ? (
                     <Animated.View style={[styles.solvedBanner, { opacity: solvedOpacity, transform: [{ scale: solvedScale }] }]}>
-                        <Text style={styles.solvedText}>🎉 Puzzle Solved!</Text>
-                        <Text style={styles.solvedSubtext}>You matched all clues perfectly.</Text>
+                        <Text style={styles.solvedText}>🎉 Correct!</Text>
+                        <Text style={styles.solvedSubtext}>{hasNextPuzzle ? 'Onward to the next challenge.' : 'Track completed!'}</Text>
                     </Animated.View>
                 ) : (
                     <View style={styles.headerInfo}>
@@ -160,8 +187,8 @@ export default function PuzzleScreen() {
                             validationState?.errors && validationState.errors.length > 0 && styles.errorSubtitle
                         ]}>
                             {validationState?.errors && validationState.errors.length > 0
-                                ? 'Some areas need correction'
-                                : 'Drag to form the rectangles'}
+                                ? 'Oops, check the overlaps'
+                                : 'Fill the board with rectangles'}
                         </Text>
                     </View>
                 )}
@@ -185,10 +212,16 @@ export default function PuzzleScreen() {
 
             <View style={styles.footer}>
                 {validationState?.isSolved ? (
-                    <Animated.View style={[styles.solvedFooterExtra, { opacity: solvedOpacity }]}>
-                        <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                            <Text style={styles.resetButtonText}>Play Again</Text>
-                        </TouchableOpacity>
+                    <Animated.View style={[styles.solvedFooterExtra, { opacity: solvedOpacity, width: '100%' }]}>
+                        {hasNextPuzzle ? (
+                            <TouchableOpacity style={styles.submitButton} onPress={handleNextPuzzle}>
+                                <Text style={styles.submitButtonText}>Next Puzzle</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={styles.resetButton} onPress={() => navigation.goBack()}>
+                                <Text style={styles.resetButtonText}>Return to Tracks</Text>
+                            </TouchableOpacity>
+                        )}
                     </Animated.View>
                 ) : (
                     <TouchableOpacity
@@ -210,58 +243,56 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: BACKGROUND_COLOR,
         paddingTop: 60,
-        paddingBottom: 20,
     },
     header: {
-        alignItems: 'center',
-        marginBottom: 24,
         paddingHorizontal: 24,
-        width: '100%',
+        marginBottom: 20,
     },
     headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        width: '100%',
         marginBottom: 16,
+    },
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backButton: {
+        marginRight: 12,
+        paddingVertical: 4,
+    },
+    backButtonLabel: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: PRIMARY_COLOR,
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: '900',
+        color: '#0F172A',
+        letterSpacing: -0.5,
     },
     headerActions: {
         flexDirection: 'row',
-        gap: 8,
-    },
-    title: {
-        fontSize: 32,
-        fontWeight: '900',
-        color: '#0F172A', // Slate 900
-        letterSpacing: -1,
     },
     actionButton: {
-        backgroundColor: '#FFFFFF',
         paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingVertical: 6,
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
+        backgroundColor: '#F1F5F9',
     },
     actionButtonText: {
-        color: PRIMARY_COLOR,
-        fontWeight: '600',
         fontSize: 13,
-    },
-    disabledText: {
-        color: '#CBD5E1',
+        fontWeight: '700',
+        color: '#64748B',
     },
     headerInfo: {
-        height: 24,
+        height: 60,
         justifyContent: 'center',
     },
     subtitle: {
-        fontSize: 15,
+        fontSize: 16,
         color: '#64748B',
         fontWeight: '500',
     },
@@ -270,77 +301,70 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     solvedBanner: {
-        alignItems: 'center',
-        backgroundColor: '#ECFDF5',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#A7F3D0',
+        height: 60,
+        justifyContent: 'center',
     },
     solvedText: {
-        fontSize: 16,
-        fontWeight: '800',
+        fontSize: 22,
+        fontWeight: '900',
         color: SUCCESS_COLOR,
     },
     solvedSubtext: {
-        fontSize: 12,
-        color: '#059669',
+        fontSize: 14,
+        color: '#64748B',
         fontWeight: '500',
-        marginTop: 2,
     },
     boardWrapper: {
         flex: 1,
-        alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 20,
+        alignItems: 'center',
+        padding: 20,
     },
     footer: {
-        paddingHorizontal: 24,
+        padding: 24,
+        paddingBottom: 40,
         alignItems: 'center',
-        minHeight: 100,
-        justifyContent: 'center',
     },
     submitButton: {
         backgroundColor: PRIMARY_COLOR,
-        paddingVertical: 18,
+        width: '100%',
+        height: 60,
         borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
         elevation: 4,
         shadowColor: PRIMARY_COLOR,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
+        shadowOpacity: 0.2,
         shadowRadius: 8,
-        width: '100%',
-        alignItems: 'center',
     },
     submitButtonDisabled: {
         backgroundColor: '#CBD5E1',
-        shadowOpacity: 0,
         elevation: 0,
+        shadowOpacity: 0,
     },
     submitButtonText: {
         color: '#FFFFFF',
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '800',
         letterSpacing: 0.5,
     },
     solvedFooterExtra: {
-        width: '100%',
         alignItems: 'center',
     },
     resetButton: {
         backgroundColor: '#FFFFFF',
-        paddingVertical: 16,
-        paddingHorizontal: 32,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        borderColor: PRIMARY_COLOR,
         width: '100%',
+        height: 60,
+        borderRadius: 20,
+        justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 2,
+        borderColor: PRIMARY_COLOR,
     },
     resetButtonText: {
         color: PRIMARY_COLOR,
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '800',
     }
 });

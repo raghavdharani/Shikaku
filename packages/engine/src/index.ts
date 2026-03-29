@@ -1,6 +1,7 @@
 export * from './types';
 export * from './geometry';
 export * from './gameplay';
+export * from './solver';
 import { Board, Rectangle, ValidationResult } from './types';
 import {
   getCellsForRectangle,
